@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crm-postgres
+    environment:
+      POSTGRES_DB: crm_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - crm-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: crm-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/crm_db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      JWT_SECRET: 3cfa76ef14937c1c0ea519f8fc057a80fcd04a7420f8e8bcd0a7567c272e007b
+      CORS_ORIGINS: http://localhost:3000
+      UAZAPI_BASE_URL: ${UAZAPI_BASE_URL:-https://free.uazapi.com}
+      UAZAPI_TOKEN: ${UAZAPI_TOKEN:-seu-token}
+      UAZAPI_INSTANCE: ${UAZAPI_INSTANCE:-instancia}
+      ASAAS_API_KEY: ${ASAAS_API_KEY:-sua-chave}
+
+  frontend:
+    build: ./frontend
+    container_name: crm-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: crm-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin123
+    volumes:
+      - crm-n8n-data:/home/node/.n8n
+
+volumes:
+  crm-postgres-data:
+  crm-n8n-data:

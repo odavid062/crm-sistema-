@@ -1,0 +1,199 @@
+{
+  "name": "CRM -> Supabase (PRONTO - so importar e ativar)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-to-supabase",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1111111-1111-1111-1111-111111111111",
+      "name": "Webhook IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 400],
+      "webhookId": "crm-to-supabase"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Achata o payload do CRM em campos faceis de usar.\nconst body = $json.body || {};\nreturn [{ json: {\n  event: body.event || 'desconhecido',\n  tenantId: body.tenantId || null,\n  occurredAt: body.occurredAt || new Date().toISOString(),\n  deliveryId: ($json.headers && $json.headers['x-crm-delivery']) || null,\n  data: body.data || {},\n  raw: body\n}}];"
+      },
+      "id": "a2222222-2222-2222-2222-222222222222",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://yyhjubsbbbdhkuhchfqv.supabase.co/rest/v1/crm_events_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"{{$json.event}}\",\n  \"tenant_id\": {{ $json.tenantId ? ('\"' + $json.tenantId + '\"') : 'null' }},\n  \"delivery_id\": {{ $json.deliveryId ? ('\"' + $json.deliveryId + '\"') : 'null' }},\n  \"occurred_at\": \"{{$json.occurredAt}}\",\n  \"payload\": {{ JSON.stringify($json.raw) }}\n}",
+        "options": {}
+      },
+      "id": "a3333333-3333-3333-3333-333333333333",
+      "name": "Salva no events_log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{$('Parse').first().json.event}}", "rightValue": "contact.", "operator": { "type": "string", "operation": "startsWith" } }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{$('Parse').first().json.event}}", "rightValue": "deal.", "operator": { "type": "string", "operation": "startsWith" } }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{$('Parse').first().json.event}}", "rightValue": "payment.", "operator": { "type": "string", "operation": "startsWith" } }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "none" }
+      },
+      "id": "a4444444-4444-4444-4444-444444444444",
+      "name": "Tipo de evento",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://yyhjubsbbbdhkuhchfqv.supabase.co/rest/v1/crm_contacts?on_conflict=id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{$('Parse').first().json.data.id}}\",\n  \"tenant_id\": {{ $('Parse').first().json.tenantId ? ('\"' + $('Parse').first().json.tenantId + '\"') : 'null' }},\n  \"name\": {{ JSON.stringify($('Parse').first().json.data.name || null) }},\n  \"email\": {{ JSON.stringify($('Parse').first().json.data.email || null) }},\n  \"phone\": {{ JSON.stringify($('Parse').first().json.data.phone || null) }},\n  \"whatsapp\": {{ JSON.stringify($('Parse').first().json.data.whatsapp || null) }},\n  \"status\": {{ JSON.stringify($('Parse').first().json.data.status || null) }},\n  \"source\": {{ JSON.stringify($('Parse').first().json.data.source || null) }},\n  \"company_name\": {{ JSON.stringify($('Parse').first().json.data.companyName || null) }},\n  \"raw\": {{ JSON.stringify($('Parse').first().json.data) }}\n}",
+        "options": {}
+      },
+      "id": "a5555555-5555-5555-5555-555555555555",
+      "name": "Upsert contato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://yyhjubsbbbdhkuhchfqv.supabase.co/rest/v1/crm_deals?on_conflict=id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{$('Parse').first().json.data.id}}\",\n  \"tenant_id\": {{ $('Parse').first().json.tenantId ? ('\"' + $('Parse').first().json.tenantId + '\"') : 'null' }},\n  \"title\": {{ JSON.stringify($('Parse').first().json.data.title || null) }},\n  \"value\": {{ $('Parse').first().json.data.value || 0 }},\n  \"stage_name\": {{ JSON.stringify($('Parse').first().json.data.stageName || null) }},\n  \"status\": {{ JSON.stringify($('Parse').first().json.data.status || null) }},\n  \"contact_name\": {{ JSON.stringify($('Parse').first().json.data.contactName || null) }},\n  \"raw\": {{ JSON.stringify($('Parse').first().json.data) }}\n}",
+        "options": {}
+      },
+      "id": "a6666666-6666-6666-6666-666666666666",
+      "name": "Upsert deal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://yyhjubsbbbdhkuhchfqv.supabase.co/rest/v1/crm_payments?on_conflict=id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{$('Parse').first().json.data.id}}\",\n  \"tenant_id\": {{ $('Parse').first().json.tenantId ? ('\"' + $('Parse').first().json.tenantId + '\"') : 'null' }},\n  \"description\": {{ JSON.stringify($('Parse').first().json.data.description || null) }},\n  \"value\": {{ $('Parse').first().json.data.value || 0 }},\n  \"status\": {{ JSON.stringify($('Parse').first().json.data.status || null) }},\n  \"billing_type\": {{ JSON.stringify($('Parse').first().json.data.billingType || null) }},\n  \"due_date\": {{ JSON.stringify($('Parse').first().json.data.dueDate || null) }},\n  \"payment_date\": {{ JSON.stringify($('Parse').first().json.data.paymentDate || null) }},\n  \"raw\": {{ JSON.stringify($('Parse').first().json.data) }}\n}",
+        "options": {}
+      },
+      "id": "a7777777-7777-7777-7777-777777777777",
+      "name": "Upsert pagamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 560]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }",
+        "options": {}
+      },
+      "id": "a8888888-8888-8888-8888-888888888888",
+      "name": "Responde 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 620]
+    }
+  ],
+  "connections": {
+    "Webhook IN": { "main": [[{ "node": "Parse", "type": "main", "index": 0 }]] },
+    "Parse": { "main": [[{ "node": "Salva no events_log", "type": "main", "index": 0 }]] },
+    "Salva no events_log": {
+      "main": [[
+        { "node": "Tipo de evento", "type": "main", "index": 0 },
+        { "node": "Responde 200", "type": "main", "index": 0 }
+      ]]
+    },
+    "Tipo de evento": {
+      "main": [
+        [{ "node": "Upsert contato", "type": "main", "index": 0 }],
+        [{ "node": "Upsert deal", "type": "main", "index": 0 }],
+        [{ "node": "Upsert pagamento", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "ababab00-abab-abab-abab-abababababab"
+}

@@ -1,0 +1,123 @@
+{
+  "name": "CRM - B) Pagamento confirmado (payment.received)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-payment-received",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b1111111-1111-1111-1111-111111111111",
+      "name": "Webhook IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "crm-payment-received"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const secret = $env.WEBHOOK_SECRET;\nif (secret) {\n  const crypto = require('crypto');\n  const raw = JSON.stringify($json.body || {});\n  const header = ($json.headers && $json.headers['x-crm-signature']) || '';\n  const got = header.replace(/^sha256=/,'');\n  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');\n  if (got !== expected) throw new Error('HMAC invalido');\n}\nreturn [{ json: $json.body }];"
+      },
+      "id": "b2222222-2222-2222-2222-222222222222",
+      "name": "Verifica HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "has-deal",
+              "leftValue": "={{$json.data.deal}}",
+              "rightValue": "",
+              "operator": { "type": "object", "operation": "exists", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3333333-3333-3333-3333-333333333333",
+      "name": "Tem deal vinculado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{$env.CRM_API_URL}}/deals/{{$json.data.deal.id}}/status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.CRM_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"WON\"\n}",
+        "options": {}
+      },
+      "id": "b4444444-4444-4444-4444-444444444444",
+      "name": "Marcar deal como WON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.UAZAPI_BASE_URL}}/{{$env.UAZAPI_INSTANCE}}/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "token", "value": "={{$env.UAZAPI_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{$json.data.contact.whatsapp || $json.data.contact.phone}}\",\n  \"text\": \"Recebemos seu pagamento de R$ {{$json.data.value}} ({{$json.data.description}}). Obrigado!\"\n}",
+        "options": {}
+      },
+      "id": "b5555555-5555-5555-5555-555555555555",
+      "name": "Enviar recibo (WhatsApp)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      },
+      "id": "b6666666-6666-6666-6666-666666666666",
+      "name": "200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook IN": { "main": [[{ "node": "Verifica HMAC", "type": "main", "index": 0 }]] },
+    "Verifica HMAC": { "main": [[{ "node": "Tem deal vinculado?", "type": "main", "index": 0 }]] },
+    "Tem deal vinculado?": {
+      "main": [
+        [{ "node": "Marcar deal como WON", "type": "main", "index": 0 }],
+        [{ "node": "Enviar recibo (WhatsApp)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Marcar deal como WON": { "main": [[{ "node": "Enviar recibo (WhatsApp)", "type": "main", "index": 0 }]] },
+    "Enviar recibo (WhatsApp)": { "main": [[{ "node": "200 OK", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1"
+}

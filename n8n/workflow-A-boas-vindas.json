@@ -1,0 +1,123 @@
+{
+  "name": "CRM - A) Boas-vindas (contact.created)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-contact-created",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Webhook IN",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "crm-contact-created"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Verificacao HMAC opcional. Se WEBHOOK_SECRET nao estiver definido em env, pula.\nconst secret = $env.WEBHOOK_SECRET;\nif (secret) {\n  const crypto = require('crypto');\n  const raw = JSON.stringify($json.body || {});\n  const header = ($json.headers && $json.headers['x-crm-signature']) || '';\n  const got = header.replace(/^sha256=/,'');\n  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');\n  if (got !== expected) {\n    throw new Error('HMAC invalido. Header: ' + header);\n  }\n}\nreturn [{ json: $json.body }];"
+      },
+      "id": "22222222-2222-2222-2222-222222222222",
+      "name": "Verifica HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{$json.data.status}}",
+              "rightValue": "LEAD",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "33333333-3333-3333-3333-333333333333",
+      "name": "Se status = LEAD",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.UAZAPI_BASE_URL}}/{{$env.UAZAPI_INSTANCE}}/send/text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "token", "value": "={{$env.UAZAPI_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{$json.data.whatsapp || $json.data.phone}}\",\n  \"text\": \"Ola {{$json.data.name}}! Seja bem-vindo(a). Em que podemos te ajudar hoje?\"\n}",
+        "options": {}
+      },
+      "id": "44444444-4444-4444-4444-444444444444",
+      "name": "WhatsApp boas-vindas (UazAPI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CRM_API_URL}}/notes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.CRM_TOKEN}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contactId\": \"{{$json.data.id}}\",\n  \"content\": \"Mensagem de boas-vindas enviada via WhatsApp pelo n8n.\"\n}",
+        "options": {}
+      },
+      "id": "55555555-5555-5555-5555-555555555555",
+      "name": "Registrar nota no CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      },
+      "id": "66666666-6666-6666-6666-666666666666",
+      "name": "200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook IN": { "main": [[{ "node": "Verifica HMAC", "type": "main", "index": 0 }]] },
+    "Verifica HMAC": { "main": [[{ "node": "Se status = LEAD", "type": "main", "index": 0 }]] },
+    "Se status = LEAD": {
+      "main": [
+        [{ "node": "WhatsApp boas-vindas (UazAPI)", "type": "main", "index": 0 }],
+        [{ "node": "200 OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "WhatsApp boas-vindas (UazAPI)": { "main": [[{ "node": "Registrar nota no CRM", "type": "main", "index": 0 }]] },
+    "Registrar nota no CRM": { "main": [[{ "node": "200 OK", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1"
+}
