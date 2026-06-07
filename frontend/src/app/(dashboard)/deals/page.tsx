@@ -5,17 +5,29 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { formatCurrency, formatDate, STATUS_LABELS, STATUS_COLORS, cn } from "@/lib/utils";
-import { Plus, Search, TrendingUp } from "lucide-react";
+import { Plus, Search, TrendingUp, Eye, Trash2 } from "lucide-react";
 import type { Deal, PageResponse } from "@/types";
+import toast from "react-hot-toast";
+import { DealModal } from "@/components/deals/DealModal";
+import { DealDrawer } from "@/components/deals/DealDrawer";
 
 export default function DealsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<PageResponse<Deal>>({
     queryKey: ["deals-list", search, status, page],
     queryFn: () => api.get("/deals", { params: { search: search || undefined, status: status || undefined, page, size: 20 } }).then((r) => r.data),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/deals/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["deals-list"] }); toast.success("Deal excluído"); },
+    onError: () => toast.error("Erro ao excluir deal"),
   });
 
   const priorityColors: Record<string, string> = {
@@ -23,6 +35,8 @@ export default function DealsPage() {
     MEDIUM: "text-yellow-600 bg-yellow-50",
     LOW: "text-gray-600 bg-gray-100",
   };
+
+  const priorityLabels: Record<string, string> = { HIGH: "Alta", MEDIUM: "Média", LOW: "Baixa" };
 
   return (
     <div>
@@ -41,7 +55,8 @@ export default function DealsPage() {
             <option value="WON">Ganhos</option>
             <option value="LOST">Perdidos</option>
           </select>
-          <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+          <button onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
             <Plus size={16} /> Novo Deal
           </button>
         </div>
@@ -56,14 +71,15 @@ export default function DealsPage() {
                 <th className="text-left px-4 py-3 text-gray-500 font-medium">Status</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden lg:table-cell">Prioridade</th>
                 <th className="text-left px-4 py-3 text-gray-500 font-medium hidden lg:table-cell">Fechamento</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-500">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-gray-500">Carregando...</td></tr>
               ) : data?.content.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-16">
+                  <td colSpan={7} className="text-center py-16">
                     <TrendingUp size={40} className="mx-auto text-gray-200 mb-3" />
                     <p className="text-gray-500">Nenhum deal encontrado</p>
                   </td>
@@ -89,19 +105,46 @@ export default function DealsPage() {
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
                       <span className={cn("px-2 py-1 rounded-full text-xs font-medium", priorityColors[deal.priority] ?? "bg-gray-100 text-gray-700")}>
-                        {deal.priority}
+                        {priorityLabels[deal.priority] ?? deal.priority}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
                       {deal.expectedCloseDate ? formatDate(deal.expectedCloseDate) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => setSelectedDealId(deal.id)}
+                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition" title="Ver detalhes">
+                          <Eye size={15} />
+                        </button>
+                        <button onClick={() => { if (confirm("Excluir deal?")) deleteMutation.mutate(deal.id); }}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+
+          {data && data.totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+              <p className="text-sm text-gray-500">{data.totalElements} deals · Página {data.number + 1} de {data.totalPages}</p>
+              <div className="flex gap-2">
+                <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+                  className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50">Anterior</button>
+                <button disabled={page >= data.totalPages - 1} onClick={() => setPage(p => p + 1)}
+                  className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50">Próxima</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      <DealModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <DealDrawer dealId={selectedDealId} onClose={() => setSelectedDealId(null)} />
     </div>
   );
 }

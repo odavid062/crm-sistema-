@@ -5,8 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { formatDateTime, cn } from "@/lib/utils";
-import { Plus, CheckCircle, Clock, Phone, Mail, Video, MessageCircle } from "lucide-react";
+import { Plus, CheckCircle, Clock, Phone, Mail, Video, MessageCircle, Trash2 } from "lucide-react";
 import type { Activity, PageResponse } from "@/types";
+import toast from "react-hot-toast";
+import { ActivityModal } from "@/components/activities/ActivityModal";
 
 const typeIcons: Record<string, React.ReactNode> = {
   TASK: <CheckCircle size={15} />,
@@ -24,8 +26,11 @@ const typeColors: Record<string, string> = {
   WHATSAPP: "text-emerald-600 bg-emerald-50",
 };
 
+const priorityLabels: Record<string, string> = { HIGH: "Alta", MEDIUM: "Média", LOW: "Baixa" };
+
 export default function ActivitiesPage() {
   const [statusFilter, setStatusFilter] = useState("PENDING");
+  const [modalOpen, setModalOpen] = useState(false);
   const qc = useQueryClient();
 
   const { data } = useQuery<PageResponse<Activity>>({
@@ -35,7 +40,13 @@ export default function ActivitiesPage() {
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/activities/${id}/complete`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["activities"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["activities"] }); toast.success("Atividade concluída!"); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/activities/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["activities"] }); toast.success("Atividade excluída"); },
+    onError: () => toast.error("Erro ao excluir"),
   });
 
   return (
@@ -52,7 +63,8 @@ export default function ActivitiesPage() {
               </button>
             ))}
           </div>
-          <button className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+          <button onClick={() => setModalOpen(true)}
+            className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
             <Plus size={16} /> Nova Atividade
           </button>
         </div>
@@ -75,14 +87,20 @@ export default function ActivitiesPage() {
                 activity.priority === "HIGH" ? "bg-red-100 text-red-700" :
                 activity.priority === "MEDIUM" ? "bg-yellow-100 text-yellow-700" :
                 "bg-gray-100 text-gray-700")}>
-                {activity.priority}
+                {priorityLabels[activity.priority] ?? activity.priority}
               </span>
-              {activity.status === "PENDING" && (
-                <button onClick={() => completeMutation.mutate(activity.id)}
-                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition" title="Concluir">
-                  <CheckCircle size={18} />
+              <div className="flex items-center gap-1">
+                {activity.status === "PENDING" && (
+                  <button onClick={() => completeMutation.mutate(activity.id)}
+                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition" title="Concluir">
+                    <CheckCircle size={18} />
+                  </button>
+                )}
+                <button onClick={() => { if (confirm("Excluir atividade?")) deleteMutation.mutate(activity.id); }}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition" title="Excluir">
+                  <Trash2 size={16} />
                 </button>
-              )}
+              </div>
             </div>
           ))}
           {data?.content.length === 0 && (
@@ -93,6 +111,8 @@ export default function ActivitiesPage() {
           )}
         </div>
       </div>
+
+      <ActivityModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }

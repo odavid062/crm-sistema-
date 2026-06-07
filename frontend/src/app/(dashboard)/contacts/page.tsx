@@ -5,16 +5,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { formatDate, STATUS_LABELS, STATUS_COLORS, cn, getInitials } from "@/lib/utils";
-import { Plus, Search, Filter, Trash2, Eye, MessageCircle } from "lucide-react";
+import { Plus, Search, Trash2, Eye, MessageCircle } from "lucide-react";
 import type { Contact, PageResponse } from "@/types";
 import toast from "react-hot-toast";
 import { ContactModal } from "@/components/contacts/ContactModal";
+import { ContactDrawer } from "@/components/contacts/ContactDrawer";
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<PageResponse<Contact>>({
@@ -85,7 +87,7 @@ export default function ContactsPage() {
                 <tr><td colSpan={6} className="text-center py-12 text-gray-500">Nenhum contato encontrado</td></tr>
               ) : (
                 data?.content.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-gray-50">
+                  <tr key={contact.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedContactId(contact.id)}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm">
@@ -105,18 +107,20 @@ export default function ContactsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{contact.companyName ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-400 hidden lg:table-cell">{formatDate(contact.createdAt)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
                         {contact.whatsapp && (
-                          <button className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition" title="WhatsApp">
+                          <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noopener"
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition" title="WhatsApp">
                             <MessageCircle size={16} />
-                          </button>
+                          </a>
                         )}
-                        <button className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition">
+                        <button onClick={() => setSelectedContactId(contact.id)}
+                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition">
                           <Eye size={16} />
                         </button>
                         <button
-                          onClick={() => deleteMutation.mutate(contact.id)}
+                          onClick={() => { if (confirm("Excluir contato?")) deleteMutation.mutate(contact.id); }}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
                         >
                           <Trash2 size={16} />
@@ -151,6 +155,7 @@ export default function ContactsPage() {
       </div>
 
       <ContactModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <ContactDrawer contactId={selectedContactId} onClose={() => setSelectedContactId(null)} />
     </div>
   );
 }

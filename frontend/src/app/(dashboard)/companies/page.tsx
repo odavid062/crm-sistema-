@@ -5,14 +5,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { formatDate, getInitials } from "@/lib/utils";
-import { Plus, Search, Trash2, Eye, Globe } from "lucide-react";
+import { Plus, Search, Trash2, Eye, Globe, Pencil } from "lucide-react";
 import type { Company, PageResponse } from "@/types";
 import toast from "react-hot-toast";
+import { CompanyModal } from "@/components/companies/CompanyModal";
 
 export default function CompaniesPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [showModal, setShowModal] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editCompany, setEditCompany] = useState<Company | undefined>(undefined);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<PageResponse<Company>>({
@@ -23,7 +25,12 @@ export default function CompaniesPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/companies/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["companies"] }); toast.success("Empresa excluída"); },
+    onError: () => toast.error("Erro ao excluir empresa"),
   });
+
+  function openCreate() { setEditCompany(undefined); setModalOpen(true); }
+  function openEdit(company: Company) { setEditCompany(company); setModalOpen(true); }
+  function handleClose() { setModalOpen(false); setEditCompany(undefined); }
 
   return (
     <div>
@@ -35,7 +42,7 @@ export default function CompaniesPage() {
             <input placeholder="Buscar empresa..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
           </div>
-          <button onClick={() => setShowModal(true)}
+          <button onClick={openCreate}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
             <Plus size={16} /> Nova Empresa
           </button>
@@ -49,6 +56,8 @@ export default function CompaniesPage() {
                 <div className="h-3 bg-gray-100 rounded w-1/2" />
               </div>
             ))
+          ) : data?.content.length === 0 ? (
+            <div className="col-span-full text-center py-16 text-gray-400">Nenhuma empresa encontrada</div>
           ) : (
             data?.content.map((company) => (
               <div key={company.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition">
@@ -74,8 +83,11 @@ export default function CompaniesPage() {
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
                   <span className="text-xs text-gray-400">{formatDate(company.createdAt)}</span>
                   <div className="flex gap-1">
-                    <button className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg"><Eye size={14} /></button>
-                    <button onClick={() => deleteMutation.mutate(company.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg">
+                    <button onClick={() => openEdit(company)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition" title="Editar">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => { if (confirm("Excluir empresa?")) deleteMutation.mutate(company.id); }}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -84,7 +96,22 @@ export default function CompaniesPage() {
             ))
           )}
         </div>
+
+        {/* Pagination */}
+        {data && data.totalPages > 1 && (
+          <div className="flex items-center justify-between mt-6">
+            <p className="text-sm text-gray-500">{data.totalElements} empresas · Página {data.number + 1} de {data.totalPages}</p>
+            <div className="flex gap-2">
+              <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50">Anterior</button>
+              <button disabled={page >= data.totalPages - 1} onClick={() => setPage(p => p + 1)}
+                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50">Próxima</button>
+            </div>
+          </div>
+        )}
       </div>
+
+      <CompanyModal open={modalOpen} onClose={handleClose} company={editCompany} />
     </div>
   );
 }

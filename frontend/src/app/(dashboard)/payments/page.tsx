@@ -8,10 +8,13 @@ import { formatCurrency, formatDate, STATUS_LABELS, STATUS_COLORS, cn } from "@/
 import { Plus, ExternalLink, QrCode, Trash2 } from "lucide-react";
 import type { Payment, PageResponse } from "@/types";
 import toast from "react-hot-toast";
+import { PaymentModal } from "@/components/payments/PaymentModal";
+import { PixModal } from "@/components/payments/PixModal";
 
 export default function PaymentsPage() {
   const [status, setStatus] = useState("");
-  const [showModal, setShowModal] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pixPaymentId, setPixPaymentId] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<PageResponse<Payment>>({
@@ -22,6 +25,7 @@ export default function PaymentsPage() {
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/payments/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["payments"] }); toast.success("Cobrança cancelada"); },
+    onError: () => toast.error("Erro ao cancelar cobrança"),
   });
 
   const billingLabels: Record<string, string> = {
@@ -47,7 +51,7 @@ export default function PaymentsPage() {
             <option value="OVERDUE">Vencido</option>
             <option value="CANCELLED">Cancelado</option>
           </select>
-          <button onClick={() => setShowModal(true)}
+          <button onClick={() => setModalOpen(true)}
             className="ml-auto flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
             <Plus size={16} /> Nova Cobrança
           </button>
@@ -68,6 +72,8 @@ export default function PaymentsPage() {
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
                 <tr><td colSpan={6} className="text-center py-12 text-gray-500">Carregando...</td></tr>
+              ) : data?.content.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-12 text-gray-500">Nenhum pagamento encontrado</td></tr>
               ) : (
                 data?.content.map((payment) => (
                   <tr key={payment.id} className="hover:bg-gray-50">
@@ -93,12 +99,13 @@ export default function PaymentsPage() {
                           </a>
                         )}
                         {payment.billingType === "PIX" && payment.status === "PENDING" && (
-                          <button className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="QR Code Pix">
+                          <button onClick={() => setPixPaymentId(payment.id)}
+                            className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="QR Code Pix">
                             <QrCode size={15} />
                           </button>
                         )}
                         {payment.status === "PENDING" && (
-                          <button onClick={() => cancelMutation.mutate(payment.id)}
+                          <button onClick={() => { if (confirm("Cancelar cobrança?")) cancelMutation.mutate(payment.id); }}
                             className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition">
                             <Trash2 size={15} />
                           </button>
@@ -112,6 +119,9 @@ export default function PaymentsPage() {
           </table>
         </div>
       </div>
+
+      <PaymentModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <PixModal paymentId={pixPaymentId} onClose={() => setPixPaymentId(null)} />
     </div>
   );
 }

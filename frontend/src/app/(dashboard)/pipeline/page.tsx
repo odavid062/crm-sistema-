@@ -6,12 +6,17 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import api from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Plus, MoreHorizontal } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Pipeline, Deal } from "@/types";
 import toast from "react-hot-toast";
+import { DealModal } from "@/components/deals/DealModal";
+import { DealDrawer } from "@/components/deals/DealDrawer";
 
 export default function PipelinePage() {
   const [selectedPipeline, setSelectedPipeline] = useState<string | null>(null);
+  const [dealModalOpen, setDealModalOpen] = useState(false);
+  const [defaultStageId, setDefaultStageId] = useState<string | undefined>(undefined);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data: pipelines } = useQuery<Pipeline[]>({
@@ -42,6 +47,16 @@ export default function PipelinePage() {
     moveMutation.mutate({ dealId: draggableId, stageId: destination.droppableId });
   }
 
+  function openAddDeal(stageId: string) {
+    setDefaultStageId(stageId);
+    setDealModalOpen(true);
+  }
+
+  function closeDealModal() {
+    setDealModalOpen(false);
+    setDefaultStageId(undefined);
+  }
+
   const dealsByStage = (stageId: string) =>
     deals.filter((d) => d.stageId === stageId && d.status === "OPEN");
 
@@ -52,7 +67,6 @@ export default function PipelinePage() {
     <div className="flex flex-col h-full">
       <Header title="Pipeline de Vendas" />
       <div className="p-6 pb-0">
-        {/* Pipeline selector */}
         <div className="flex items-center gap-3 mb-4 overflow-x-auto">
           {pipelines?.map((p) => (
             <button
@@ -107,9 +121,10 @@ export default function PipelinePage() {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
+                              onClick={() => setSelectedDealId(deal.id)}
                               className={cn(
-                                "bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-grab active:cursor-grabbing",
-                                snapshot.isDragging && "shadow-lg rotate-1"
+                                "bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer hover:border-indigo-300 transition",
+                                snapshot.isDragging && "shadow-lg rotate-1 cursor-grabbing"
                               )}
                             >
                               <p className="font-medium text-sm text-gray-900 mb-1">{deal.title}</p>
@@ -131,7 +146,9 @@ export default function PipelinePage() {
                   )}
                 </Droppable>
 
-                <button className="flex items-center gap-2 p-3 text-gray-500 hover:bg-gray-200 transition text-sm">
+                <button
+                  onClick={() => openAddDeal(stage.id)}
+                  className="flex items-center gap-2 p-3 text-gray-500 hover:bg-gray-200 transition text-sm">
                   <Plus size={15} />
                   Adicionar Deal
                 </button>
@@ -140,6 +157,14 @@ export default function PipelinePage() {
           </div>
         </DragDropContext>
       </div>
+
+      <DealModal
+        open={dealModalOpen}
+        onClose={closeDealModal}
+        defaultPipelineId={activePipeline?.id}
+        defaultStageId={defaultStageId}
+      />
+      <DealDrawer dealId={selectedDealId} onClose={() => setSelectedDealId(null)} />
     </div>
   );
 }
