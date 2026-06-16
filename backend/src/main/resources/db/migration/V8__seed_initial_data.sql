@@ -7,7 +7,7 @@ INSERT INTO users (name, email, password, role)
 VALUES (
     'Administrador',
     'admin@crm.com',
-    '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    '$2b$10$wXx2mdE76XC6c11qkh/jtuoHFg92y8/96wr3RPw27ZXQrFtG5d3yi',
     'ADMIN'
 ) ON CONFLICT (email) DO NOTHING;
 
